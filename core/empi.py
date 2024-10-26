@@ -1,4 +1,6 @@
 #! /usr/bin/python3
+# Example Run: sudo python3 empi.py /usr/lib/x86_64-linux-gnu/libmpi.so.40
+# in another terminal run: mpirun -np 4 mpi_hello_world
 from bcc import BPF
 from time import sleep
 import argparse
@@ -32,8 +34,8 @@ def load_ebpf(path: str) -> str:
     file = open(path, 'r')
     code = file.read()
     # Remove multi-line and single-line comments
-    code = re.sub(r'/\*.*?\*/', '', code, flags=re.DOTALL)
-    code = re.sub(r'//.*?$', '', code, flags=re.MULTILINE)
+    code = re.sub(r'/\*.*?\*/', '', code, flags = re.DOTALL)
+    code = re.sub(r'//.*?$', '', code, flags = re.MULTILINE)
     return code
 
 def verify_arguments(args) -> None:
