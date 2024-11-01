@@ -26,7 +26,12 @@
 *.a
 *.lib
 
-# Executables
-*.exe
-*.out
-*.app
+# Executables in the root directory only
+/*.exe
+/*.out
+/*.app
+
+# Ignore executables in subdirectories
+**/*.exe
+**/*.out
+**/*.app

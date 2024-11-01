@@ -1,4 +1,4 @@
-EXECS = mpi_hello_world 
+EXECS = mpi_hello_world mpi_isend
 MPICC ?= mpicc
 
 all: ${EXECS}
