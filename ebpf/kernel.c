@@ -1,6 +1,6 @@
 #include <uapi/linux/ptrace.h>
 
-#define PAGE_COUNT 2 << 4
+#define PAGE_COUNT 1 << 4
 #define NAME_SIZE 32
 
 enum event_type { 
