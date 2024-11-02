@@ -30,18 +30,18 @@ def verify_arguments(args) -> None:
         bail("No valid path given")
 
 def process_event(ebpf, ctx, data, size) -> None:
-   raw_event = ebpf["events"].event(data)
-   event = Event(
+    raw_event = ebpf["events"].event(data)
+    event = Event(
        EventType(raw_event.type), 
        Arguments(), 
        raw_event.name.decode('utf-8'),
        raw_event.pid, 
        raw_event.time
     )
-   print(event)
-   # Need to handle determining function (this needs to be done in kernel.c)
-   # and need to handle parsing the arguments (let this go to the Argument class in event.py)
-   # then reacting to this
+    print(event)
+    # Need to handle determining function (this needs to be done in kernel.c)
+    # and need to handle parsing the arguments (let this go to the Argument class in event.py)
+    # then reacting to this
 
 def main() -> None:
     args = parser.parse_args()
@@ -64,7 +64,7 @@ def main() -> None:
     exiting = False
     while not exiting:
         try:
-            ebpf.ring_buffer_poll(1)
+            ebpf.ring_buffer_consume()
             exiting = time.time() - start_time >= duration
         except KeyboardInterrupt:
             exiting = True
