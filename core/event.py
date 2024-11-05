@@ -16,3 +16,11 @@ class Event:
     name: str
     pid: int
     time: int
+    ip: int
+    core: int
+
+@dataclass
+class Function:
+    count: int
+    total: int
+    last_time: int
