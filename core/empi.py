@@ -11,9 +11,10 @@ import os
 import subprocess
 
 # Globals
-DEFAULT_DURATION = 60
+DEFAULT_DURATION = 75
 DEFAULT_EBPF_PATH = "../ebpf/kernel.c"
 functions = {} #Dictionary of dictionaries (dictionary per process)
+functions_total = {'MPI_Waitall': Function(0, 0, 0)}
 last_updated = {} #to match exit with entry of same pid
 cores = {}
 
@@ -63,24 +64,29 @@ def process_event(ebpf, ctx, data, size) -> None:
     if event.type == EventType.FUNCTION_ENTRY:
         # get entry in dict
         if event.ip not in functions[event.pid]:
-            functions[event.pid][event.ip] = Function(0, 0, 0)
+            functions[event.pid][event.ip] = 0 # Function(0, 0, 0)
 
         # update last_time
-        functions[event.pid][event.ip] = Function(functions[event.pid][event.ip].count, functions[event.pid][event.ip].total, event.time)
+        functions[event.pid][event.ip] = event.time # Function(functions[event.pid][event.ip].count, functions[event.pid][event.ip].total, event.time)
         last_updated[event.pid] = event.ip
-        if functions[event.pid][event.ip].count >= 2 and (functions[event.pid][event.ip].total/functions[event.pid][event.ip].count) > 100000:
+        #if functions[event.pid][event.ip].count >= 2 and (functions[event.pid][event.ip].total/functions[event.pid][event.ip].count) > 100000:
+        if cores[event.pid] == 0 and functions_total['MPI_Waitall'].count >= 2 and (functions_total['MPI_Waitall'].total/functions_total['MPI_Waitall'].count) > 100000:
             # lower frequency
-            subprocess.Popen(["sudo", "cpupower", "-c", str(cores[event.pid]), "frequency-set", "-u", "1000MHz"], stdout=subprocess.DEVNULL)
+            subprocess.Popen(["cpupower", "frequency-set", "-u", "2000MHz"], stdout=subprocess.DEVNULL)
+            #subprocess.Popen(["/usr/local/bin/wrmsr", "0x620", "0x814"])
             #subprocess.Popen(["sudo", "cpupower", "-c", str(cores[event.pid] + 104), "frequency-set", "-u", "1000MHz"], stdout=subprocess.DEVNULL)
 
     else:
         # update total and count
-        total = event.time - functions[event.pid][last_updated[event.pid]].last_time
-        functions[event.pid][last_updated[event.pid]] = Function(functions[event.pid][last_updated[event.pid]].count + 1, functions[event.pid][last_updated[event.pid]].total + total, 0)
+        total = event.time - functions[event.pid][last_updated[event.pid]] # .last_time
+        functions[event.pid][last_updated[event.pid]] = 0 #Function(functions[event.pid][last_updated[event.pid]].count + 1, functions[event.pid][last_updated[event.pid]].total + total, 0)
+        functions_total['MPI_Waitall'] = Function(functions_total['MPI_Waitall'].count + 1, functions_total['MPI_Waitall'].total + total, 0)
 
-        if functions[event.pid][last_updated[event.pid]].count >= 2 and (functions[event.pid][last_updated[event.pid]].total/functions[event.pid][last_updated[event.pid]].count) > 100000:
+        #if functions[event.pid][last_updated[event.pid]].count >= 2 and (functions[event.pid][last_updated[event.pid]].total/functions[event.pid][last_updated[event.pid]].count) > 100000:
+        if cores[event.pid] == 0 and functions_total['MPI_Waitall'].count >= 2 and (functions_total['MPI_Waitall'].total/functions_total['MPI_Waitall'].count) > 100000:
             # raise frequency
-            subprocess.Popen(["sudo", "cpupower", "-c", str(cores[event.pid]), "frequency-set", "-u", "3800MHz"], stdout=subprocess.DEVNULL)
+            subprocess.Popen(["cpupower", "frequency-set", "-u", "3800MHz"], stdout=subprocess.DEVNULL)
+            #subprocess.Popen(["/usr/local/bin/wrmsr", "0x620", "0x816"])
             #subprocess.Popen(["sudo", "cpupower", "-c", str(cores[event.pid] + 104), "frequency-set", "-u", "3800MHz"], stdout=subprocess.DEVNULL)
 
 
@@ -112,15 +118,19 @@ def main() -> None:
             signal.signal(signal.SIGINT, signal_ignore)
 
     print()
-    for pid in functions:
-        print(pid)
-        print(cores[pid])
-        for ip in functions[pid]:
-            print(ip)
-            print(functions[pid][ip])
-            if (functions[pid][ip].count > 0):
-                print(f"Average time: {functions[pid][ip].total/functions[pid][ip].count:.2f}")
-        print()
+    #for pid in functions:
+    #    print(pid)
+    #    print(cores[pid])
+    #    for ip in functions[pid]:
+    #        print(ip)
+    #        print(functions[pid][ip])
+    #        if (functions[pid][ip].count > 0):
+    #            print(f"Average time: {functions[pid][ip].total/functions[pid][ip].count:.2f}")
+    #    print()
+
+    print(functions_total)
+    if functions_total['MPI_Waitall'].count > 0:
+        print(f"Average time: {functions_total['MPI_Waitall'].total/functions_total['MPI_Waitall'].count:.2f}")
     print("Detaching...")
 
 if __name__ == "__main__":
