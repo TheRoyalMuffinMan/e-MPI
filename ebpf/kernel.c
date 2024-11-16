@@ -18,9 +18,8 @@ struct event {
     char name[NAME_SIZE];
 
     // Possible arguments
-    void* MPI_Request;
-    void* MPI_Status;
-
+    u64 mpi_count;
+    u64 mpi_datatype;
 };
 
 // Event ring-buffer, allocations 16 pages of space (4KB * 16 = 64KB total memory allocation)
@@ -34,8 +33,8 @@ int trace_func_entry_NAME(struct pt_regs *ctx) {
     ev.type = ENTRY;
     ev.pid = bpf_get_current_pid_tgid();
     ev.time = bpf_ktime_get_ns();
-    ev.MPI_Request = NULL;
-    ev.MPI_Status = NULL;
+    ev.mpi_count = 0;
+    ev.mpi_datatype = 0;
     ev.ip = PT_REGS_IP(ctx);
     ev.core = bpf_get_smp_processor_id();
 
@@ -60,8 +59,8 @@ int trace_func_exit_NAME(struct pt_regs *ctx) {
     ev.type = EXIT;
     ev.pid = bpf_get_current_pid_tgid();
     ev.time = bpf_ktime_get_ns();
-    ev.MPI_Request = NULL;
-    ev.MPI_Status = NULL;
+    ev.mpi_count = 0;
+    ev.mpi_datatype = 0;
     ev.ip = PT_REGS_IP(ctx);
     ev.core = bpf_get_smp_processor_id();
 

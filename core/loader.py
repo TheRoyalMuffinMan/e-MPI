@@ -9,8 +9,8 @@ int trace_func_entry_NAME(struct pt_regs *ctx) {
     ev.type = ENTRY;
     ev.pid = bpf_get_current_pid_tgid();
     ev.time = bpf_ktime_get_ns();
-    ev.MPI_Request = NULL;
-    ev.MPI_Status = NULL;
+    ev.mpi_count = 0;
+    ev.mpi_datatype = 0;
     ev.ip = PT_REGS_IP(ctx);
     ev.core = bpf_get_smp_processor_id();
 
@@ -19,6 +19,7 @@ int trace_func_entry_NAME(struct pt_regs *ctx) {
     __builtin_memcpy(&ev.name, &name, NAME_SIZE);
 
     // Handles parsing argument depending on the caller function
+    PARSE_CALLER_ARGUMENTS
 
     if (events.ringbuf_output(&ev, sizeof(ev), 0) != 0) {
         bpf_trace_printk("Error on submission for process #%d\\n",  ev.pid);
@@ -37,8 +38,8 @@ int trace_func_exit_NAME(struct pt_regs *ctx) {
     ev.type = EXIT;
     ev.pid = bpf_get_current_pid_tgid();
     ev.time = bpf_ktime_get_ns();
-    ev.MPI_Request = NULL;
-    ev.MPI_Status = NULL;
+    ev.mpi_count = 0;
+    ev.mpi_datatype = 0;
     ev.ip = PT_REGS_IP(ctx);
     ev.core = bpf_get_smp_processor_id();
 
@@ -47,6 +48,7 @@ int trace_func_exit_NAME(struct pt_regs *ctx) {
     __builtin_memcpy(&ev.name, &name, NAME_SIZE);
 
     // Handles parsing argument depending on the caller function
+    PARSE_CALLER_ARGUMENTS 
 
     if (events.ringbuf_output(&ev, sizeof(ev), 0) != 0) {
         bpf_trace_printk("Error on submission for process #%d\\n",  ev.pid);
@@ -56,8 +58,8 @@ int trace_func_exit_NAME(struct pt_regs *ctx) {
 }
 """
 
-# Add argument handling for MPI_Wait
-def MPI_Waitall_args(func: str, code: str, entry: str, exit: str) -> str:
+# Generates a entry and exit uprobes for a given MPI_API
+def MPI_API_func_generator(func: str, args: str, code: str, entry: str, exit: str) -> str:
     # Replace function name with MPI function
     entry_header = r"(trace_func_entry_)(NAME)"
     exit_header = r"(trace_func_exit_)(NAME)"
@@ -69,18 +71,44 @@ def MPI_Waitall_args(func: str, code: str, entry: str, exit: str) -> str:
     exit = re.sub(r"DEFAULT_NAME", func, exit)
 
     # Replace PARSE_CALLER_ARGUMENTS label in both entry and exit
-    #arguments = """
-    #ev.MPI_Request = (void *)PT_REGS_PARM1(ctx);
-    #ev.MPI_Status = (void *)PT_REGS_PARM2(ctx);
-    #"""
-    #entry = re.sub(r"PARSE_CALLER_ARGUMENTS", arguments, entry)
-    #exit = re.sub(r"PARSE_CALLER_ARGUMENTS", arguments, exit)
+    # with custom MPI function arguments
+    entry = re.sub(r"PARSE_CALLER_ARGUMENTS", args, entry)
+    exit = re.sub(r"PARSE_CALLER_ARGUMENTS", args, exit)
 
     return code + entry + exit
 
 
-FUNCTIONS = {
-    "MPI_Waitall": MPI_Waitall_args
+FUNCTIONS = [
+    "MPI_Wait",
+    "MPI_Waitall",
+    "MPI_Send",
+    "MPI_Recv",
+    "MPI_Barrier",
+    "MPI_Allreduce"
+]
+
+FUNCTION_ARGUMENTS = {
+    "MPI_Wait": """
+
+    """,
+    "MPI_Waitall": """
+    ev.mpi_count = (u64)PT_REGS_PARM1(ctx);
+    """,
+    "MPI_Send": """
+    ev.mpi_count = (u64)PT_REGS_PARM2(ctx);
+    ev.mpi_datatype = (u64)PT_REGS_PARM3(ctx);
+    """,
+    "MPI_Recv": """
+    ev.mpi_count = (u64)PT_REGS_PARM2(ctx);
+    ev.mpi_datatype = (u64)PT_REGS_PARM3(ctx);
+    """,
+    "MPI_Barrier": """
+        
+    """,
+    "MPI_Allreduce": """
+    ev.mpi_count = (u64)PT_REGS_PARM3(ctx);
+    ev.mpi_datatype = (u64)PT_REGS_PARM4(ctx);
+    """
 }
 
 
@@ -94,6 +122,6 @@ def load_ebpf(path: str) -> str:
 
     # Handle label replacement
     for func in FUNCTIONS:
-        code = FUNCTIONS[func](func, code, ENTRY, EXIT)
+        code = MPI_API_func_generator(func, FUNCTION_ARGUMENTS[func], code, ENTRY, EXIT)
 
     return code

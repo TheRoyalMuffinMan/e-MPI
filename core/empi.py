@@ -4,11 +4,14 @@
 from bcc import BPF
 from loader import *
 from event import *
+from globals import *
 import argparse
 import signal
 import time
 import os
 import subprocess
+import psutil
+
 
 # Globals
 DEFAULT_DURATION = 75
@@ -54,6 +57,7 @@ def process_event(ebpf, ctx, data, size) -> None:
     if event.pid not in functions:
         functions[event.pid] = {}
 
+
     # get core of this pid
     if event.pid not in cores:
         if event.core > 103:
@@ -89,12 +93,40 @@ def process_event(ebpf, ctx, data, size) -> None:
             #subprocess.Popen(["/usr/local/bin/wrmsr", "0x620", "0x816"])
             #subprocess.Popen(["sudo", "cpupower", "-c", str(cores[event.pid] + 104), "frequency-set", "-u", "3800MHz"], stdout=subprocess.DEVNULL)
 
+def cpu_manufacturer() -> str:
+    file = open(CPU_INFO, 'r')
+    cpu_info = file.read().lower()
+
+    if "intel" in cpu_info:
+        return "intel"
+    elif "amd" in cpu_info:
+        return "amd"
+    else:
+        bail("Unsupported CPU manufacturer found")
+        return "Unknown"
+
+def determine_configurations() -> None:
+    global PHYSICAL_CORES, LOGICAL_CORES, THREADS_PER_CORE, CPU_SOCKETS, MANUFACTURER, CPU_FREQUENCY_RANGE
+    PHYSICAL_CORES = psutil.cpu_count(logical = False)
+    LOGICAL_CORES = psutil.cpu_count(logical = True)
+    THREADS_PER_CORE = PHYSICAL_CORES // LOGICAL_CORES
+    CPU_SOCKETS = int(subprocess.check_output('cat /proc/cpuinfo | grep "physical id" | sort -u | wc -l', shell = True))
+    MANUFACTURER = cpu_manufacturer()
+
+    if MANUFACTURER == "amd":
+        CPU_FREQUENCY_RANGE = list(map(int, open(FREQUENCY_AMD_LOCATION, 'r').read().split()))
+    else:
+        pass
 
 def main() -> None:
     args = parser.parse_args()
-    verify_arguments(args)
     library = args.path
     duration = args.duration if args.duration else DEFAULT_DURATION
+    verify_arguments(args)
+    
+    determine_configurations()
+    print(PHYSICAL_CORES, LOGICAL_CORES, THREADS_PER_CORE, CPU_SOCKETS, MANUFACTURER, CPU_FREQUENCY_RANGE)
+
     code = load_ebpf(DEFAULT_EBPF_PATH)
     ebpf = BPF(text = code)
 
