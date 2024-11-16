@@ -5,9 +5,10 @@ class EventType(Enum):
     FUNCTION_ENTRY = 0
     FUNCTION_EXIT = 1
 
+@dataclass
 class Arguments:
-    def __init__(self) -> None:
-        pass
+    count: int
+    datatype: int
 
 @dataclass
 class Event:
