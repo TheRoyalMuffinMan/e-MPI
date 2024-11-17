@@ -10,12 +10,13 @@ endTime_ms=$(date +%s%N | cut -b 1-13)
 totalEnergy=$((0x${endEnergy} - 0x${startEnergy}))
 totalTime_ms=$((endTime_ms - startTime_ms))
 
-if [[$totalEnergy < 0]]; then   # overflow
+if [ $totalEnergy -lt 0 ]; then   # overflow
         echo "Detected overflow"
         echo "Start: $startEnergy"
         echo "End: $endEnergy"
-        startEnergy=$((0x${startEnergy} + 0xffffffff))
-        totalEnergy=$((0x${endEnergy} - 0x${startEnergy}))
+        endEnergy=$((0x${endEnergy} + 0x100000000))
+        totalEnergy=$((${endEnergy} - 0x${startEnergy}))
+        echo "New end: $endEnergy"
 fi
 
 totalTime_seconds=$(bc <<<"scale=2;$totalTime_ms/1000")
