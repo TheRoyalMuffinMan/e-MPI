@@ -4,6 +4,7 @@ FREQUENCY_AMD_LOCATION = "/sys/devices/system/cpu/cpu0/cpufreq/scaling_available
 DEFAULT_DURATION = 75
 DEFAULT_EBPF_PATH = "../ebpf/kernel.c"
 DEFAULT_OUTPUT_FILE = "output.log"
+FREQ_LOWERED = 0
 
 # Undefined Globals
 PHYSICAL_CORES = None
