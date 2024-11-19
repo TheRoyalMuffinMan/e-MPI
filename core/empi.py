@@ -17,6 +17,9 @@ processes = {} # Dictionary of Process classes
 total_tracker = {} # Summation across all processes
 core_zero_pid = 0
 
+INTEL_LOWER_FREQ = "2000MHz"
+AMD_LOWER_FREQ = "2200MHz"
+
 # Arguments
 parser = argparse.ArgumentParser(description="Core program for tracking and reducing voltage for MPI function")
 parser.add_argument("-d", "--duration", type = int, help = "total duration of trace, in seconds")
@@ -30,6 +33,7 @@ def bail(error: str) -> None:
     exit(1)
 
 def process_event(ebpf, ctx, data, size) -> None:
+    global FREQ_LOWERED, core_zero_pid
     raw_event = ebpf["events"].event(data)
     event = Event(
        EventType(raw_event.type),
@@ -52,12 +56,9 @@ def process_event(ebpf, ctx, data, size) -> None:
         if event.core > PHYSICAL_CORES - 1:
             core = event.core - PHYSICAL_CORES
         processes[event.pid] = Process(event.pid, core, FUNCTIONS)
-        global core_zero_pid
 
         if core == 0:
             core_zero_pid = event.pid
-
-    global FREQ_LOWERED
 
     if event.type == EventType.FUNCTION_ENTRY:
         # update last_time
@@ -65,7 +66,7 @@ def process_event(ebpf, ctx, data, size) -> None:
 
         if processes[event.pid].get_core() == 0 and total_tracker[event.name].count >= 2 and (total_tracker[event.name].total/total_tracker[event.name].count) > 100000 and FREQ_LOWERED == 0: # allow only one core to be in charge for per-socket DVFS
             # lower frequency
-            subprocess.Popen(["cpupower", "frequency-set", "-u", "2000MHz"], stdout=subprocess.DEVNULL)
+            subprocess.Popen(["cpupower", "frequency-set", "-u", INTEL_LOWER_FREQ], stdout=subprocess.DEVNULL)
             total_tracker[event.name].dvfs_ran += 1
             FREQ_LOWERED = 1
             #print("Lowering for " + event.name)
@@ -180,20 +181,20 @@ def main() -> None:
 
     print("Detaching...")
 
-    # Write all tracked information to a log file
-    file = open(DEFAULT_OUTPUT_FILE, 'w')
-    ###################### Write statistic information here
-    file.close()
-
     # Set to max frequency
     subprocess.Popen(["cpupower", "frequency-set", "-u", str(CPU_FREQUENCY_RANGE[0])], stdout=subprocess.DEVNULL)
 
-    #for pid in processes:
-    #    print(processes[pid])
-
+    # Write all tracked information to a log file
+    file = open(DEFAULT_OUTPUT_FILE, 'w')
+    file.write("Function uprobe Statistics:\n")
     for func in FUNCTIONS:
         if total_tracker[func].count > 0:
-            print(f"{func}: {total_tracker[func]}, avg {total_tracker[func].total/total_tracker[func].count/1000} us")
+            file.write(f"{func}: {total_tracker[func]}, avg {total_tracker[func].total/total_tracker[func].count/1000} us\n")
+    file.write("Process Instances Dump: \n")
+    for pid in processes:
+       file.write(str(processes[pid]) + "\n")        
+    ###################### Write statistic information here
+    file.close()
 
 if __name__ == "__main__":
     main()
